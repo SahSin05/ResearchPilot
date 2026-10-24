@@ -22,3 +22,21 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: researchpilot-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: researchpilot
+      POSTGRES_USER: researchpilot
+      POSTGRES_PASSWORD: researchpilot
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - researchpilot_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  researchpilot_postgres_data:

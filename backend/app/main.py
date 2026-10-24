@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes.papers import router as paper_router
 from app.routes.documents import router as document_router
+from app.routes.retrieval import router as retrieval_router
 
 from app.database.connection import engine, Base
 from app.database.models import DocumentDB, DocumentChunkDB
@@ -25,6 +26,7 @@ Base.metadata.create_all(bind=engine)
 
 app.include_router(paper_router)
 app.include_router(document_router)
+app.include_router(retrieval_router)
 
 app.add_middleware(
     CORSMiddleware,

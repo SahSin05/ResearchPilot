@@ -1,0 +1,218 @@
+warning: in the working copy of 'backend/app/main.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/requirements.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docker-compose.yml', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/backend/app/__init__.py b/backend/app/__init__.py[m
+[1mdeleted file mode 100644[m
+[1mindex e69de29..0000000[m
+[1mdiff --git a/backend/app/database/connection.py b/backend/app/database/connection.py[m
+[1mindex c609456..0e5e868 100644[m
+[1m--- a/backend/app/database/connection.py[m
+[1m+++ b/backend/app/database/connection.py[m
+[36m@@ -1,13 +1,27 @@[m
+[32m+[m[32mimport os[m
+[32m+[m
+ from sqlalchemy import create_engine[m
+[31m-from sqlalchemy.orm import sessionmaker, declarative_base[m
+[32m+[m[32mfrom sqlalchemy.orm import declarative_base, sessionmaker[m
+[32m+[m
+[32m+[m
+[32m+[m[32mDATABASE_URL = os.getenv([m
+[32m+[m[32m    "DATABASE_URL",[m
+[32m+[m[32m    "sqlite:///./researchpilot.db",[m
+[32m+[m[32m)[m
+ [m
+ [m
+[31m-DATABASE_URL = "sqlite:///./researchpilot.db"[m
+[32m+[m[32mconnect_args = {}[m
+[32m+[m
+[32m+[m[32mif DATABASE_URL.startswith("sqlite"):[m
+[32m+[m[32m    connect_args = {[m
+[32m+[m[32m        "check_same_thread": False,[m
+[32m+[m[32m    }[m
+ [m
+ [m
+ engine = create_engine([m
+     DATABASE_URL,[m
+[31m-    connect_args={"check_same_thread": False},[m
+[32m+[m[32m    connect_args=connect_args,[m
+[32m+[m[32m    pool_pre_ping=True,[m
+ )[m
+ [m
+ [m
+[36m@@ -20,3 +34,11 @@[m [mSessionLocal = sessionmaker([m
+ [m
+ Base = declarative_base()[m
+ [m
+[32m+[m
+[32m+[m[32mdef get_db():[m
+[32m+[m[32m    db = SessionLocal()[m
+[32m+[m
+[32m+[m[32m    try:[m
+[32m+[m[32m        yield db[m
+[32m+[m[32m    finally:[m
+[32m+[m[32m        db.close()[m
+\ No newline at end of file[m
+[1mdiff --git a/backend/app/database/models.py b/backend/app/database/models.py[m
+[1mindex 5a2183d..981eb7d 100644[m
+[1m--- a/backend/app/database/models.py[m
+[1m+++ b/backend/app/database/models.py[m
+[36m@@ -1,4 +1,16 @@[m
+[31m-from sqlalchemy import Column, String, Integer, Text, ForeignKey[m
+[32m+[m[32mfrom datetime import datetime[m
+[32m+[m
+[32m+[m[32mfrom pgvector.sqlalchemy import Vector[m
+[32m+[m[32mfrom sqlalchemy import ([m
+[32m+[m[32m    Column,[m
+[32m+[m[32m    DateTime,[m
+[32m+[m[32m    ForeignKey,[m
+[32m+[m[32m    Index,[m
+[32m+[m[32m    Integer,[m
+[32m+[m[32m    String,[m
+[32m+[m[32m    Text,[m
+[32m+[m[32m    UniqueConstraint,[m
+[32m+[m[32m)[m
+ [m
+ from app.database.connection import Base[m
+ [m
+[36m@@ -13,27 +25,131 @@[m [mclass DocumentDB(Base):[m
+     page_count = Column(Integer, nullable=True)[m
+     extracted_text = Column(Text, nullable=False)[m
+     file_path = Column(String, nullable=False)[m
+[31m-    processing_status = Column(String, nullable=False, default="completed")[m
+[32m+[m[32m    processing_status = Column([m
+[32m+[m[32m        String,[m
+[32m+[m[32m        nullable=False,[m
+[32m+[m[32m        default="pending",[m
+[32m+[m[32m        index=True,[m
+[32m+[m[32m    )[m
+     user_id = Column(String, nullable=True, index=True)[m
+ [m
+[32m+[m[32m    created_at = Column([m
+[32m+[m[32m        DateTime,[m
+[32m+[m[32m        default=datetime.utcnow,[m
+[32m+[m[32m        nullable=False,[m
+[32m+[m[32m    )[m
+[32m+[m[32m    updated_at = Column([m
+[32m+[m[32m        DateTime,[m
+[32m+[m[32m        default=datetime.utcnow,[m
+[32m+[m[32m        onupdate=datetime.utcnow,[m
+[32m+[m[32m        nullable=False,[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m
+ class PaperDB(Base):[m
+     __tablename__ = "papers"[m
+ [m
+     id = Column(Integer, primary_key=True, index=True)[m
+[31m-    openalex_id = Column(String, unique=True, nullable=False, index=True)[m
+[32m+[m[32m    openalex_id = Column([m
+[32m+[m[32m        String,[m
+[32m+[m[32m        unique=True,[m
+[32m+[m[32m        nullable=False,[m
+[32m+[m[32m        index=True,[m
+[32m+[m[32m    )[m
+     title = Column(String, nullable=False)[m
+     publication_year = Column(Integer, nullable=True)[m
+     doi = Column(String, nullable=True)[m
+     authors = Column(Text, nullable=True)[m
+     abstract = Column(Text, nullable=True)[m
+ [m
+[32m+[m
+ class DocumentChunkDB(Base):[m
+     __tablename__ = "document_chunks"[m
+ [m
+     id = Column(Integer, primary_key=True, index=True)[m
+[31m-    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False, index=True,)[m
+[31m-    chunk_index = Column(Integer, nullable=False,)[m
+[31m-    text = Column(Text, nullable=False,)[m
+[31m-    character_count = Column(Integer, nullable=False,)[m
+ [m
+[32m+[m[32m    document_id = Column([m
+[32m+[m[32m        Integer,[m
+[32m+[m[32m        ForeignKey("documents.id", ondelete="CASCADE"),[m
+[32m+[m[32m        nullable=False,[m
+[32m+[m[32m        index=True,[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m[32m    parent_chunk_id = Column([m
+[32m+[m[32m        Integer,[m
+[32m+[m[32m        ForeignKey("document_chunks.id", ondelete="SET NULL"),[m
+[32m+[m[32m        nullable=True,[m
+[32m+[m[32m        index=True,[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m[32m    chunk_index = Column(Integer, nullable=False)[m
+[32m+[m[32m    chunk_level = Column([m
+[32m+[m[32m        String,[m
+[32m+[m[32m        nullable=False,[m
+[32m+[m[32m        default="child",[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m[32m    text = Column(Text, nullable=False)[m
+[32m+[m[32m    character_count = Column(Integer, nullable=False)[m
+[32m+[m
+[32m+[m[32m    content_hash = Column([m
+[32m+[m[32m        String(64),[m
+[32m+[m[32m        nullable=False,[m
+[32m+[m[32m        index=True,[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m[32m    page_number = Column([m
+[32m+[m[32m        Integer,[m
+[32m+[m[32m        nullable=True,[m
+[32m+[m[32m        index=True,[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m[32m    section = Column(String, nullable=True)[m
+[32m+[m[32m    subsection = Column(String, nullable=True)[m
+[32m+[m
+[32m+[m[32m    embedding = Column([m
+[32m+[m[32m        Vector(1536),[m
+[32m+[m[32m        nullable=True,[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m[32m    embedding_model = Column(String, nullable=True)[m
+[32m+[m[32m    embedding_version = Column(String, nullable=True)[m
+[32m+[m
+[32m+[m[32m    embedding_status = Column([m
+[32m+[m[32m        String,[m
+[32m+[m[32m        nullable=False,[m
+[32m+[m[32m        default="pending",[m
+[32m+[m[32m        index=True,[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m[32m    created_at = Column([m
+[32m+[m[32m        DateTime,[m
+[32m+[m[32m        default=datetime.utcnow,[m
+[32m+[m[32m        nullable=False,[m
+[32m+[m[32m    )[m
+[32m+[m
+[32m+[m[32m    updated_at = Column([m
+[32m+[m[32m        DateTime,[m
+[32m+[m[32m        default=datetime.utcnow,[m
+[32m+[m[32m        onupdate=datetime.utcnow,[m
+[32m+[m[32m        nullable=False,[m
+[32m+[m[32m    )[m
+ [m
+[32m+[m[32m    __table_args__ = ([m
+[32m+[m[32m        UniqueConstraint([m
+[32m+[m[32m            "document_id",[m
+[32m+[m[32m            "chunk_index",[m
+[32m+[m[32m            name="uq_document_chunk_index",[m
+[32m+[m[32m        ),[m
+[32m+[m[32m        Index([m
+[32m+[m[32m            "ix_document_chunks_document_parent",[m
+[32m+[m[32m            "document_id",[m
+[32m+[m[32m            "parent_chunk_id",[m
+[32m+[m[32m        ),[m
+[32m+[m[32m        Index([m
+[32m+[m[32m            "ix_document_chunks_document_page",[m
+[32m+[m[32m            "document_id",[m
+[32m+[m[32m            "page_number",[m
+[32m+[m[32m        ),[m
+[32m+[m[32m    )[m
+[32m+[m[41m    [m
+\ No newline at end of file[m
+[1mdiff --git a/backend/app/main.py b/backend/app/main.py[m
+[1mindex df7fb89..0c7140e 100644[m
+[1m-
