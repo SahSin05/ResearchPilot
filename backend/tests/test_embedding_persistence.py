@@ -13,7 +13,7 @@ class FakeEmbeddingProvider(EmbeddingProvider):
 
     @property
     def dimensions(self) -> int:
-        return 1536
+        return 768
 
     def embed_documents(
         self,
@@ -33,7 +33,8 @@ class FakeEmbeddingProvider(EmbeddingProvider):
 
 def test_embed_pending_chunks():
     engine = create_engine(
-        "postgresql+psycopg://researchpilot:researchpilot@localhost:5432/researchpilot"
+        "postgresql+psycopg://researchpilot:researchpilot"
+        "@localhost:5432/researchpilot"
     )
 
     TestingSessionLocal = sessionmaker(
@@ -49,7 +50,9 @@ def test_embed_pending_chunks():
         file_type="txt",
         file_size=100,
         page_count=1,
-        extracted_text="ResearchPilot embedding persistence test.",
+        extracted_text=(
+            "ResearchPilot embedding persistence test."
+        ),
         file_path="uploads/embedding-test.txt",
         processing_status="completed",
         user_id="test-user",
@@ -78,6 +81,20 @@ def test_embed_pending_chunks():
     db.refresh(chunk)
 
     try:
+        pending_chunks = (
+            db.query(DocumentChunkDB)
+            .filter(
+                DocumentChunkDB.embedding_status == "pending",
+                DocumentChunkDB.id != chunk.id,
+            )
+            .all()
+        )
+
+        for pending_chunk in pending_chunks:
+            pending_chunk.embedding_status = "completed"
+
+        db.commit()
+
         provider = FakeEmbeddingProvider()
 
         processed = embed_pending_chunks(
@@ -93,7 +110,7 @@ def test_embed_pending_chunks():
         assert chunk.embedding_model == "fake-embedding-model"
         assert chunk.embedding_version == "v1"
         assert chunk.embedding is not None
-        assert len(chunk.embedding) == 1536
+        assert len(chunk.embedding) == 768
 
     finally:
         db.delete(chunk)

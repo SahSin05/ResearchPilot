@@ -22,9 +22,10 @@ def _clean_text(text: str) -> str:
     """
     Normalize extracted text while preserving paragraph boundaries.
     """
-
+    text = text.replace("\x00","")
     text = text.replace("\r\n", "\n")
     text = text.replace("\r", "\n")
+ 
 
     lines = []
 

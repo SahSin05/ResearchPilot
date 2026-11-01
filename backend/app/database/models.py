@@ -108,7 +108,7 @@ class DocumentChunkDB(Base):
     subsection = Column(String, nullable=True)
 
     embedding = Column(
-        Vector(1536),
+        Vector(768),
         nullable=True,
     )
 

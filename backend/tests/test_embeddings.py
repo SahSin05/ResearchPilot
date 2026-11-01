@@ -6,5 +6,5 @@ def test_embedding_provider_factory():
     provider = create_embedding_provider()
 
     assert isinstance(provider, EmbeddingProvider)
-    assert provider.model_name == "text-embedding-3-small"
-    assert provider.dimensions == 1536
+    assert provider.model_name == "sentence-transformers/all-mpnet-base-v2"
+    assert provider.dimensions == 768

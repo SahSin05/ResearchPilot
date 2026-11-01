@@ -34,7 +34,7 @@ def build_citations(
                 citation_id=index,
                 chunk_id=item.chunk_id,
                 document_id=item.document_id,
-                label=f"[{index}]",
+                label=f"[C{index}]",
                 page_number=item.page_number,
                 section=item.section,
                 subsection=item.subsection,

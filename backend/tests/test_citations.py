@@ -39,13 +39,13 @@ def test_build_citations_assigns_sequential_ids():
     assert len(citations) == 3
 
     assert citations[0].citation_id == 1
-    assert citations[0].label == "[1]"
+    assert citations[0].label == "[C1]"
 
     assert citations[1].citation_id == 2
-    assert citations[1].label == "[2]"
+    assert citations[1].label == "[C2]"
 
     assert citations[2].citation_id == 3
-    assert citations[2].label == "[3]"
+    assert citations[2].label == "[C3]"
 
 
 def test_build_citations_preserves_source_metadata():
@@ -67,7 +67,7 @@ def test_build_citations_preserves_source_metadata():
     assert citation.citation_id == 1
     assert citation.chunk_id == 42
     assert citation.document_id == 10
-    assert citation.label == "[1]"
+    assert citation.label == "[C1]"
     assert citation.page_number == 7
     assert citation.section == "Methods"
     assert citation.subsection == "Data Collection"
@@ -109,7 +109,7 @@ def test_build_cited_context_adds_citation_label():
 
     assert (
         cited_context[0].context_text.startswith(
-            "[1]\n"
+            "[C1]\n"
         )
     )
 
@@ -120,7 +120,7 @@ def test_build_cited_context_adds_citation_label():
 
     assert (
         cited_context[1].context_text.startswith(
-            "[2]\n"
+            "[C2]\n"
         )
     )
 
@@ -135,3 +135,4 @@ def test_build_cited_context_empty_context():
     cited_context = build_cited_context([])
 
     assert cited_context == []
+

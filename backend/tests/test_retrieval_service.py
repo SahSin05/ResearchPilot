@@ -20,7 +20,7 @@ class FakeEmbeddingProvider(EmbeddingProvider):
 
     @property
     def dimensions(self) -> int:
-        return 1536
+        return 768
 
     def embed_documents(
         self,
@@ -35,7 +35,7 @@ class FakeEmbeddingProvider(EmbeddingProvider):
         self,
         text: str,
     ) -> list[float]:
-        return [1.0] + [0.0] * 1535
+        return [1.0] + [0.0] * 767
 
 
 def test_retrieve_relevant_chunks():
@@ -72,7 +72,7 @@ def test_retrieve_relevant_chunks():
         character_count=45,
         content_hash="retrieval-relevant",
         page_number=1,
-        embedding=[1.0] + [0.0] * 1535,
+        embedding=[1.0] + [0.0] * 767,
         embedding_model="fake-embedding-model",
         embedding_version="v1",
         embedding_status="completed",
@@ -86,7 +86,7 @@ def test_retrieve_relevant_chunks():
         character_count=43,
         content_hash="retrieval-unrelated",
         page_number=1,
-        embedding=[0.0, 1.0] + [0.0] * 1534,
+        embedding=[0.0, 1.0] + [0.0] * 766,
         embedding_model="fake-embedding-model",
         embedding_version="v1",
         embedding_status="completed",

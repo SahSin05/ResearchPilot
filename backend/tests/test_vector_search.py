@@ -45,7 +45,7 @@ def test_vector_similarity_search():
         character_count=40,
         content_hash="vector-search-similar",
         page_number=1,
-        embedding=[1.0] + [0.0] * 1535,
+        embedding=[1.0] + [0.0] * 767,
         embedding_model="fake-embedding-model",
         embedding_version="v1",
         embedding_status="completed",
@@ -59,7 +59,7 @@ def test_vector_similarity_search():
         character_count=41,
         content_hash="vector-search-different",
         page_number=1,
-        embedding=[0.0, 1.0] + [0.0] * 1534,
+        embedding=[0.0, 1.0] + [0.0] * 766,
         embedding_model="fake-embedding-model",
         embedding_version="v1",
         embedding_status="completed",
@@ -72,7 +72,7 @@ def test_vector_similarity_search():
     db.commit()
 
     try:
-        query_embedding = [1.0] + [0.0] * 1535
+        query_embedding = [1.0] + [0.0] * 767
 
         results = search_similar_chunks(
             db=db,

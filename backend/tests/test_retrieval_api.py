@@ -24,7 +24,7 @@ class FakeEmbeddingProvider:
         return 1536
 
     def embed_query(self, text: str) -> list[float]:
-        return [1.0] + [0.0] * 1535
+        return [1.0] + [0.0] * 767
 
 
 engine = create_engine(DATABASE_URL)
@@ -76,7 +76,7 @@ def test_retrieval_api():
         page_number=2,
         section="Methods",
         subsection="Data Collection",
-        embedding=[1.0] + [0.0] * 1535,
+        embedding=[1.0] + [0.0] * 767,
         embedding_model="fake-embedding-model",
         embedding_version="v1",
         embedding_status="completed",
