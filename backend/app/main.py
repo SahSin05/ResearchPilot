@@ -7,6 +7,7 @@ from app.routes.papers import router as paper_router
 from app.routes.documents import router as document_router
 from app.routes.retrieval import router as retrieval_router
 from app.routes.chat import router as chat_router
+from app.routes.explanation import router as explanation_router
 
 from app.database.connection import engine, Base
 from app.database.models import DocumentDB, DocumentChunkDB
@@ -29,6 +30,7 @@ app.include_router(paper_router)
 app.include_router(document_router)
 app.include_router(retrieval_router)
 app.include_router(chat_router)
+app.include_router(explanation_router)
 
 app.add_middleware(
     CORSMiddleware,

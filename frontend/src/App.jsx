@@ -22,17 +22,41 @@ import {
   WifiOff,
   Command,
   Layers3,
+  Send,
+  RefreshCw,
 } from 'lucide-react'
 
-import { checkBackend } from './services/api'
+import {
+  checkBackend,
+  getDocuments,
+  uploadDocument,
+  searchPapers,
+  getPaperExplanation,
+  chatWithDocument,
+} from './services/api'
 
 
 const navItems = [
-  { label: 'Dashboard', icon: LayoutDashboard },
-  { label: 'Discover Papers', icon: Search },
-  { label: 'My Library', icon: FolderOpen },
-  { label: 'AI Assistant', icon: BrainCircuit },
-  { label: 'Evaluation Lab', icon: FlaskConical },
+  {
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+  },
+  {
+    label: 'Discover Papers',
+    icon: Search,
+  },
+  {
+    label: 'My Library',
+    icon: FolderOpen,
+  },
+  {
+    label: 'AI Assistant',
+    icon: BrainCircuit,
+  },
+  {
+    label: 'Evaluation Lab',
+    icon: FlaskConical,
+  },
 ]
 
 
@@ -87,9 +111,21 @@ function App() {
   const [searching, setSearching] = useState(false)
 
   const [uploadedDocuments, setUploadedDocuments] = useState([])
+  const [loadingDocuments, setLoadingDocuments] = useState(true)
+
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
-  const [loadingDocuments, setLoadingDocuments] = useState(true)
+
+  const [selectedDocument, setSelectedDocument] = useState(null)
+
+  const goTo = (page) => {
+    setActive(page)
+
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    })
+  }
 
 
   useEffect(() => {
@@ -101,18 +137,16 @@ function App() {
 
   useEffect(() => {
     const loadDocuments = async () => {
+      setLoadingDocuments(true)
+
       try {
-        const response = await fetch(
-          'http://127.0.0.1:8000/documents/'
+        const data = await getDocuments()
+
+        setUploadedDocuments(
+          Array.isArray(data)
+            ? data
+            : data.documents || []
         )
-
-        if (!response.ok) {
-          throw new Error('Failed to load documents')
-        }
-
-        const data = await response.json()
-
-        setUploadedDocuments(data)
       } catch (error) {
         console.error(
           'Failed to load documents:',
@@ -138,42 +172,32 @@ function App() {
 
     const controller = new AbortController()
 
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       setSearching(true)
 
-      fetch(
-        `http://127.0.0.1:8000/papers/search?q=${encodeURIComponent(
-          trimmedQuery
-        )}`,
-        {
-          signal: controller.signal,
+      try {
+        const data = await searchPapers(
+          trimmedQuery,
+          {
+            signal: controller.signal,
+          }
+        )
+
+        setPapers(data.papers || [])
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error(
+            'Paper search failed:',
+            error
+          )
+
+          setPapers([])
         }
-      )
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error('Paper search failed')
-          }
-
-          return response.json()
-        })
-        .then((data) => {
-          setPapers(data.papers || [])
-        })
-        .catch((error) => {
-          if (error.name !== 'AbortError') {
-            console.error(
-              'Paper search failed:',
-              error
-            )
-
-            setPapers([])
-          }
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) {
-            setSearching(false)
-          }
-        })
+      } finally {
+        if (!controller.signal.aborted) {
+          setSearching(false)
+        }
+      }
     }, 700)
 
     return () => {
@@ -191,35 +215,20 @@ function App() {
     setUploading(true)
     setUploadError('')
 
-    const formData = new FormData()
-
-    formData.append('file', file)
-
     try {
-      const response = await fetch(
-        'http://127.0.0.1:8000/documents/upload',
-        {
-          method: 'POST',
-          body: formData,
-        }
+      const document =
+        await uploadDocument(file)
+
+      setUploadedDocuments(
+        (current) => [
+          document,
+          ...current,
+        ]
       )
 
-      if (!response.ok) {
-        const errorData =
-          await response.json().catch(() => null)
+      setSelectedDocument(document)
 
-        throw new Error(
-          errorData?.detail ||
-            'Document upload failed'
-        )
-      }
-
-      const document = await response.json()
-
-      setUploadedDocuments((current) => [
-        document,
-        ...current,
-      ])
+      goTo('AI Assistant')
     } catch (error) {
       console.error(
         'Document upload failed:',
@@ -236,13 +245,10 @@ function App() {
   }
 
 
-  const goTo = (page) => {
-    setActive(page)
-
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    })
+  const handleSelectDocument = (
+    document
+  ) => {
+    setSelectedDocument(document)
   }
 
 
@@ -261,8 +267,13 @@ function App() {
           </div>
 
           <div>
-            <strong>ResearchPilot</strong>
-            <span>RESEARCH INTELLIGENCE</span>
+            <strong>
+              ResearchPilot
+            </strong>
+
+            <span>
+              RESEARCH INTELLIGENCE
+            </span>
           </div>
 
         </div>
@@ -275,8 +286,15 @@ function App() {
           </div>
 
           <div className="workspace-copy">
-            <strong>Research workspace</strong>
-            <span>Personal plan</span>
+
+            <strong>
+              Research workspace
+            </strong>
+
+            <span>
+              Personal plan
+            </span>
+
           </div>
 
           <ChevronDown size={15} />
@@ -292,7 +310,10 @@ function App() {
         <nav className="nav-list">
 
           {navItems.map(
-            ({ label, icon: Icon }) => (
+            ({
+              label,
+              icon: Icon,
+            }) => (
 
               <button
                 key={label}
@@ -301,7 +322,9 @@ function App() {
                     ? 'active'
                     : ''
                 }`}
-                onClick={() => goTo(label)}
+                onClick={() =>
+                  goTo(label)
+                }
               >
 
                 <Icon
@@ -309,7 +332,9 @@ function App() {
                   strokeWidth={1.7}
                 />
 
-                <span>{label}</span>
+                <span>
+                  {label}
+                </span>
 
                 {label ===
                   'Evaluation Lab' && (
@@ -352,7 +377,9 @@ function App() {
 
             <Settings2 size={18} />
 
-            <span>Settings</span>
+            <span>
+              Settings
+            </span>
 
           </button>
 
@@ -376,7 +403,9 @@ function App() {
 
             <div className="profile-copy">
 
-              <strong>Researcher</strong>
+              <strong>
+                Researcher
+              </strong>
 
               <span>
                 Personal workspace
@@ -406,13 +435,17 @@ function App() {
 
           <div className="breadcrumb">
 
-            <span>ResearchPilot</span>
+            <span>
+              ResearchPilot
+            </span>
 
             <span className="slash">
               /
             </span>
 
-            <strong>{active}</strong>
+            <strong>
+              {active}
+            </strong>
 
           </div>
 
@@ -420,12 +453,16 @@ function App() {
           <div className="topbar-right">
 
             <div
-              className={`connection ${apiStatus}`}
+              className={`connection ${
+                apiStatus
+              }`}
             >
 
-              {apiStatus === 'online' ? (
+              {apiStatus ===
+              'online' ? (
                 <Wifi size={14} />
-              ) : apiStatus === 'offline' ? (
+              ) : apiStatus ===
+                'offline' ? (
                 <WifiOff size={14} />
               ) : (
                 <Activity size={14} />
@@ -433,9 +470,11 @@ function App() {
 
               <span>
 
-                {apiStatus === 'online'
+                {apiStatus ===
+                'online'
                   ? 'System online'
-                  : apiStatus === 'offline'
+                  : apiStatus ===
+                    'offline'
                     ? 'Backend offline'
                     : 'Connecting…'}
 
@@ -459,7 +498,8 @@ function App() {
 
         <div className="page-content">
 
-          {active === 'Dashboard' ? (
+          {active ===
+          'Dashboard' ? (
 
             <Dashboard
               apiStatus={apiStatus}
@@ -468,7 +508,8 @@ function App() {
               goTo={goTo}
             />
 
-          ) : active === 'Discover Papers' ? (
+          ) : active ===
+            'Discover Papers' ? (
 
             <DiscoverPage
               query={query}
@@ -478,23 +519,51 @@ function App() {
               goTo={goTo}
             />
 
-          ) : active === 'My Library' ? (
+          ) : active ===
+            'My Library' ? (
 
             <LibraryPage
               onUpload={
                 handleDocumentUpload
               }
               uploading={uploading}
-              uploadError={uploadError}
-              documents={uploadedDocuments}
+              uploadError={
+                uploadError
+              }
+              documents={
+                uploadedDocuments
+              }
               loadingDocuments={
                 loadingDocuments
               }
+              selectedDocument={
+                selectedDocument
+              }
+              onSelectDocument={
+                handleSelectDocument
+              }
+              onOpenAssistant={() =>
+                goTo(
+                  'AI Assistant'
+                )
+              }
             />
 
-          ) : active === 'AI Assistant' ? (
+          ) : active ===
+            'AI Assistant' ? (
 
-            <AssistantPage />
+            <AssistantPage
+              selectedDocument={
+                selectedDocument
+              }
+              onSelectDocument={
+                handleSelectDocument
+              }
+              documents={
+                uploadedDocuments
+              }
+              goTo={goTo}
+            />
 
           ) : (
 
@@ -541,7 +610,9 @@ function Dashboard({
           <h1>
             What are
             <br />
-            <em>investigating?</em>
+            <em>
+              investigating?
+            </em>
           </h1>
 
 
@@ -592,11 +663,18 @@ function Dashboard({
         <input
           value={query}
           onChange={(e) =>
-            setQuery(e.target.value)
+            setQuery(
+              e.target.value
+            )
           }
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              goTo('Discover Papers')
+            if (
+              e.key ===
+              'Enter'
+            ) {
+              goTo(
+                'Discover Papers'
+              )
             }
           }}
           placeholder="Search papers, authors, concepts, or research topics..."
@@ -606,7 +684,9 @@ function Dashboard({
         <button
           className="command-submit"
           onClick={() =>
-            goTo('Discover Papers')
+            goTo(
+              'Discover Papers'
+            )
           }
           aria-label="Search research"
         >
@@ -618,23 +698,32 @@ function Dashboard({
 
         <div className="command-footer">
 
-          <span>Try searching for</span>
+          <span>
+            Try searching for
+          </span>
 
           {topics
             .slice(0, 3)
-            .map((topic) => (
+            .map(
+              (topic) => (
 
-              <button
-                key={topic}
-                onClick={() => {
-                  setQuery(topic)
-                  goTo('Discover Papers')
-                }}
-              >
-                {topic}
-              </button>
+                <button
+                  key={topic}
+                  onClick={() => {
+                    setQuery(
+                      topic
+                    )
 
-            ))}
+                    goTo(
+                      'Discover Papers'
+                    )
+                  }}
+                >
+                  {topic}
+                </button>
+
+              )
+            )}
 
         </div>
 
@@ -663,7 +752,9 @@ function Dashboard({
             <button
               className="subtle-button"
               onClick={() =>
-                goTo('Discover Papers')
+                goTo(
+                  'Discover Papers'
+                )
               }
             >
 
@@ -679,14 +770,22 @@ function Dashboard({
           <div className="paper-feed">
 
             {demoPapers.map(
-              (paper, index) => (
+              (
+                paper,
+                index
+              ) => (
 
                 <ResearchRow
-                  key={paper.title}
+                  key={
+                    paper.title
+                  }
                   paper={paper}
                   number={String(
                     index + 1
-                  ).padStart(2, '0')}
+                  ).padStart(
+                    2,
+                    '0'
+                  )}
                   onOpen={() =>
                     goTo(
                       'Discover Papers'
@@ -725,7 +824,9 @@ function Dashboard({
 
           <div className="pulse-main">
 
-            <strong>03</strong>
+            <strong>
+              03
+            </strong>
 
             <span>
               preview papers
@@ -745,7 +846,9 @@ function Dashboard({
               Topics explored
             </span>
 
-            <strong>05</strong>
+            <strong>
+              05
+            </strong>
 
           </div>
 
@@ -758,7 +861,8 @@ function Dashboard({
 
             <strong className="teal-text">
 
-              {apiStatus === 'online'
+              {apiStatus ===
+              'online'
                 ? 'READY'
                 : 'WAITING'}
 
@@ -769,11 +873,13 @@ function Dashboard({
 
           <div className="pulse-topics">
 
-            {topics.map((topic) => (
-              <span key={topic}>
-                {topic}
-              </span>
-            ))}
+            {topics.map(
+              (topic) => (
+                <span key={topic}>
+                  {topic}
+                </span>
+              )
+            )}
 
           </div>
 
@@ -781,7 +887,9 @@ function Dashboard({
           <button
             className="pulse-action"
             onClick={() =>
-              goTo('AI Assistant')
+              goTo(
+                'AI Assistant'
+              )
             }
           >
 
@@ -914,7 +1022,9 @@ function DiscoverPage({
         <input
           value={query}
           onChange={(e) =>
-            setQuery(e.target.value)
+            setQuery(
+              e.target.value
+            )
           }
           placeholder="Search papers, authors, concepts..."
           autoFocus
@@ -933,18 +1043,22 @@ function DiscoverPage({
           EXPLORE TOPICS
         </span>
 
-        {topics.map((topic) => (
+        {topics.map(
+          (topic) => (
 
-          <button
-            key={topic}
-            onClick={() =>
-              setQuery(topic)
-            }
-          >
-            {topic}
-          </button>
+            <button
+              key={topic}
+              onClick={() =>
+                setQuery(
+                  topic
+                )
+              }
+            >
+              {topic}
+            </button>
 
-        ))}
+          )
+        )}
 
       </div>
 
@@ -965,7 +1079,10 @@ function DiscoverPage({
 
 
         {papers.map(
-          (paper, index) => (
+          (
+            paper,
+            index
+          ) => (
 
             <ResearchRow
               key={
@@ -995,9 +1112,14 @@ function DiscoverPage({
               }}
               number={String(
                 index + 1
-              ).padStart(2, '0')}
+              ).padStart(
+                2,
+                '0'
+              )}
               onOpen={() =>
-                goTo('AI Assistant')
+                goTo(
+                  'My Library'
+                )
               }
             />
 
@@ -1071,6 +1193,9 @@ function LibraryPage({
   uploadError,
   documents,
   loadingDocuments,
+  selectedDocument,
+  onSelectDocument,
+  onOpenAssistant,
 }) {
 
   return (
@@ -1108,9 +1233,7 @@ function LibraryPage({
 
 
           <span className="section-kicker">
-
             DOCUMENT INGESTION
-
           </span>
 
 
@@ -1171,9 +1294,7 @@ function LibraryPage({
           {uploadError && (
 
             <div className="upload-error">
-
               {uploadError}
-
             </div>
 
           )}
@@ -1190,9 +1311,7 @@ function LibraryPage({
               <Activity size={28} />
 
               <span className="section-kicker">
-
                 YOUR COLLECTION
-
               </span>
 
               <strong>
@@ -1212,9 +1331,7 @@ function LibraryPage({
               <Layers3 size={28} />
 
               <span className="section-kicker">
-
                 YOUR COLLECTION
-
               </span>
 
               <strong>
@@ -1234,9 +1351,7 @@ function LibraryPage({
             <>
 
               <span className="section-kicker">
-
                 YOUR COLLECTION
-
               </span>
 
 
@@ -1257,52 +1372,121 @@ function LibraryPage({
               <div className="document-list">
 
                 {documents.map(
-                  (document) => (
+                  (document) => {
 
-                    <div
-                      className="document-item"
-                      key={document.id}
-                    >
+                    const isSelected =
+                      selectedDocument?.id ===
+                      document.id
 
-                      <FileText
-                        size={20}
-                      />
+                    return (
+
+                      <button
+                        type="button"
+                        className={`document-item ${
+                          isSelected
+                            ? 'selected'
+                            : ''
+                        }`}
+                        key={
+                          document.id
+                        }
+                        onClick={() => {
+                          onSelectDocument(
+                            document
+                          )
+
+                          onOpenAssistant()
+                        }}
+                      >
+
+                        <FileText
+                          size={20}
+                        />
 
 
-                      <div>
+                        <div>
 
-                        <strong>
-                          {document.filename}
-                        </strong>
+                          <strong>
+                            {
+                              document.filename
+                            }
+                          </strong>
 
 
-                        <span>
+                          <span>
 
-                          {document.file_type}
+                            {
+                              document.file_type
+                            }
 
-                          {' · '}
+                            {' · '}
 
-                          {document.page_count ??
-                            1}
+                            {
+                              document.page_count ??
+                              1
+                            }
 
-                          {' '}
+                            {' '}
 
-                          page
-                          {document.page_count !==
-                          1
-                            ? 's'
-                            : ''}
+                            page
+                            {document.page_count !==
+                            1
+                              ? 's'
+                              : ''}
 
-                        </span>
+                            {' · '}
 
-                      </div>
+                            {
+                              document.processing_status ||
+                              'unknown'
+                            }
 
-                    </div>
+                          </span>
 
-                  )
+                        </div>
+
+                        <ArrowUpRight
+                          size={15}
+                        />
+
+                      </button>
+
+                    )
+                  }
                 )}
 
               </div>
+
+
+              {selectedDocument && (
+
+                <div className="library-selection">
+
+                  <strong>
+                    Selected paper
+                  </strong>
+
+                  <span>
+                    {
+                      selectedDocument.filename
+                    }
+                  </span>
+
+                  <button
+                    className="subtle-button"
+                    onClick={
+                      onOpenAssistant
+                    }
+                  >
+                    Open AI Assistant
+                    <ArrowUpRight
+                      size={14}
+                    />
+                  </button>
+
+                </div>
+
+              )}
 
             </>
 
@@ -1321,7 +1505,304 @@ function LibraryPage({
    AI ASSISTANT
    ========================================================= */
 
-function AssistantPage() {
+function AssistantPage({
+  selectedDocument,
+  onSelectDocument,
+  documents,
+  goTo,
+}) {
+
+  const [activeTab, setActiveTab] =
+    useState('explanation')
+
+  const [explanation, setExplanation] =
+    useState(null)
+
+  const [loadingExplanation, setLoadingExplanation] =
+    useState(false)
+
+  const [explanationError, setExplanationError] =
+    useState('')
+
+  const [question, setQuestion] =
+    useState('')
+
+  const [messages, setMessages] =
+    useState([])
+
+  const [sending, setSending] =
+    useState(false)
+
+  const [chatError, setChatError] =
+    useState('')
+
+
+  useEffect(() => {
+    setExplanation(null)
+    setExplanationError('')
+    setMessages([])
+    setQuestion('')
+
+    if (!selectedDocument) {
+      return
+    }
+
+    loadExplanation(
+      selectedDocument.id
+    )
+  }, [selectedDocument])
+
+
+  const loadExplanation = async (
+    documentId
+  ) => {
+    setLoadingExplanation(true)
+    setExplanationError('')
+
+    try {
+      const data =
+        await getPaperExplanation(
+          documentId
+        )
+
+      setExplanation(data)
+    } catch (error) {
+      console.error(
+        'Failed to load paper explanation:',
+        error
+      )
+
+      setExplanationError(
+        error.message ||
+          'Failed to generate paper explanation'
+      )
+    } finally {
+      setLoadingExplanation(false)
+    }
+  }
+
+
+  const sendQuestion = async (
+    questionOverride
+  ) => {
+
+    const text =
+      (
+        questionOverride ??
+        question
+      ).trim()
+
+    if (
+      !text ||
+      !selectedDocument ||
+      sending
+    ) {
+      return
+    }
+
+    setChatError('')
+
+    setMessages(
+      (current) => [
+        ...current,
+        {
+          id:
+            `${Date.now()}-user`,
+          role: 'user',
+          content: text,
+        },
+      ]
+    )
+
+    setQuestion('')
+    setSending(true)
+
+    try {
+
+      const response =
+        await chatWithDocument(
+          selectedDocument.id,
+          text
+        )
+
+      setMessages(
+        (current) => [
+          ...current,
+          {
+            id:
+              `${Date.now()}-assistant`,
+            role: 'assistant',
+            content:
+              response.answer,
+            sources:
+              response.sources ||
+              [],
+          },
+        ]
+      )
+
+      setActiveTab('chat')
+
+    } catch (error) {
+
+      console.error(
+        'Chat request failed:',
+        error
+      )
+
+      setChatError(
+        error.message ||
+          'Failed to get an answer'
+      )
+
+    } finally {
+      setSending(false)
+    }
+  }
+
+
+  if (!selectedDocument) {
+
+    return (
+      <section className="assistant-workspace">
+
+        <div className="assistant-header">
+
+          <div>
+
+            <div className="eyebrow">
+
+              <BrainCircuit size={13} />
+
+              PAPER-GROUNDED INTELLIGENCE
+
+            </div>
+
+            <h1>
+              Ask your research.
+            </h1>
+
+            <p>
+              A grounded AI workspace for understanding
+              papers, methods, findings, and limitations.
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div className="assistant-shell">
+
+          <div className="assistant-orb">
+
+            <BrainCircuit
+              size={42}
+              strokeWidth={1.2}
+            />
+
+          </div>
+
+
+          <span className="section-kicker">
+            RESEARCHPILOT AI
+          </span>
+
+
+          <h2>
+            Select a paper to begin.
+          </h2>
+
+
+          <p>
+            Choose an uploaded research paper from
+            your library before asking questions.
+          </p>
+
+
+          {documents.length === 0 ? (
+
+            <button
+              className="primary-button"
+              onClick={() =>
+                goTo(
+                  'My Library'
+                )
+              }
+            >
+
+              <FolderOpen
+                size={16}
+              />
+
+              Open My Library
+
+              <ArrowUpRight
+                size={15}
+              />
+
+            </button>
+
+          ) : (
+
+            <div className="assistant-document-picker">
+
+              {documents.map(
+                (document) => (
+
+                  <button
+                    type="button"
+                    className="document-item"
+                    key={
+                      document.id
+                    }
+                    onClick={() =>
+                      onSelectDocument(
+                        document
+                      )
+                    }
+                  >
+
+                    <FileText
+                      size={20}
+                    />
+
+                    <div>
+
+                      <strong>
+                        {
+                          document.filename
+                        }
+                      </strong>
+
+                      <span>
+                        {
+                          document.processing_status ||
+                          'unknown'
+                        }
+                      </span>
+
+                    </div>
+
+                    <ArrowUpRight
+                      size={15}
+                    />
+
+                  </button>
+
+                )
+              )}
+
+            </div>
+
+          )}
+
+        </div>
+
+      </section>
+    )
+  }
+
 
   return (
     <section className="assistant-workspace">
@@ -1340,83 +1821,689 @@ function AssistantPage() {
 
 
           <h1>
-            Ask your research.
+            {selectedDocument.filename}
           </h1>
 
 
           <p>
-            A grounded AI workspace for understanding
-            papers, methods, findings, and limitations.
+            ResearchPilot is grounding its answers in
+            the indexed evidence from this paper.
           </p>
 
         </div>
 
-      </div>
 
+        <div className="assistant-document-status">
 
-      <div className="assistant-shell">
+          <CheckCircle2 size={15} />
 
-        <div className="assistant-orb">
-
-          <BrainCircuit
-            size={42}
-            strokeWidth={1.2}
-          />
-
-        </div>
-
-
-        <span className="section-kicker">
-
-          RESEARCHPILOT AI
-
-        </span>
-
-
-        <h2>
-          Your research conversation starts here.
-        </h2>
-
-
-        <p>
-          Select or upload a paper first. Then ask
-          questions grounded in the source instead of
-          relying on unsupported answers.
-        </p>
-
-
-        <div className="suggestion-row">
-
-          <button>
-            Explain the main contribution
-          </button>
-
-          <button>
-            What are the limitations?
-          </button>
-
-          <button>
-            Explain the methodology
-          </button>
-
-        </div>
-
-
-        <div className="chat-input-disabled">
-
-          <span>
-            Choose a paper to start asking questions…
-          </span>
-
-          <button disabled>
-            <ArrowUpRight size={17} />
-          </button>
+          {selectedDocument.processing_status ===
+          'completed'
+            ? 'Indexed and ready'
+            : selectedDocument.processing_status ||
+              'Processing'}
 
         </div>
 
       </div>
+
+
+      <div className="assistant-tabs">
+
+        <button
+          className={
+            activeTab ===
+            'explanation'
+              ? 'active'
+              : ''
+          }
+          onClick={() =>
+            setActiveTab(
+              'explanation'
+            )
+          }
+        >
+          Paper explanation
+        </button>
+
+        <button
+          className={
+            activeTab ===
+            'chat'
+              ? 'active'
+              : ''
+          }
+          onClick={() =>
+            setActiveTab(
+              'chat'
+            )
+          }
+        >
+          Ask questions
+        </button>
+
+      </div>
+
+
+      {activeTab ===
+      'explanation' ? (
+
+        <ExplanationView
+          explanation={
+            explanation
+          }
+          loading={
+            loadingExplanation
+          }
+          error={
+            explanationError
+          }
+          onRetry={() =>
+            loadExplanation(
+              selectedDocument.id
+            )
+          }
+          onAsk={(prompt) => {
+            setActiveTab(
+              'chat'
+            )
+
+            sendQuestion(prompt)
+          }}
+        />
+
+      ) : (
+
+        <ChatView
+          messages={messages}
+          question={question}
+          setQuestion={setQuestion}
+          sending={sending}
+          error={chatError}
+          onSend={() =>
+            sendQuestion()
+          }
+          onSuggestion={
+            (prompt) =>
+              sendQuestion(prompt)
+          }
+        />
+
+      )}
 
     </section>
+  )
+}
+
+
+/* =========================================================
+   EXPLANATION
+   ========================================================= */
+
+function ExplanationView({
+  explanation,
+  loading,
+  error,
+  onRetry,
+  onAsk,
+}) {
+
+  if (loading) {
+
+    return (
+      <div className="assistant-shell">
+
+        <RefreshCw
+          className="spin"
+          size={28}
+        />
+
+        <span className="section-kicker">
+          ANALYZING PAPER
+        </span>
+
+        <h2>
+          Building your paper explanation…
+        </h2>
+
+        <p>
+          ResearchPilot is retrieving relevant evidence
+          and generating a structured explanation.
+        </p>
+
+      </div>
+    )
+  }
+
+
+  if (error) {
+
+    return (
+      <div className="assistant-shell">
+
+        <BrainCircuit size={28} />
+
+        <span className="section-kicker">
+          EXPLANATION ERROR
+        </span>
+
+        <h2>
+          We couldn't generate the explanation.
+        </h2>
+
+        <p>
+          {error}
+        </p>
+
+        <button
+          className="primary-button"
+          onClick={onRetry}
+        >
+
+          <RefreshCw size={16} />
+
+          Try again
+
+        </button>
+
+      </div>
+    )
+  }
+
+
+  if (!explanation) {
+    return null
+  }
+
+
+  const sections = [
+    {
+      key: 'problem',
+      title: 'Research problem',
+    },
+    {
+      key: 'key_concepts',
+      title: 'Key concepts',
+    },
+    {
+      key: 'methodology',
+      title: 'Methodology',
+    },
+    {
+      key: 'dataset',
+      title: 'Dataset',
+    },
+    {
+      key: 'results',
+      title: 'Results',
+    },
+    {
+      key: 'limitations',
+      title: 'Limitations',
+    },
+  ]
+
+
+  return (
+    <div className="paper-explanation">
+
+      <div className="explanation-intro">
+
+        <span className="section-kicker">
+          PAPER INTELLIGENCE
+        </span>
+
+        <h2>
+          Understand the paper at a glance.
+        </h2>
+
+        <p>
+          This explanation was generated from retrieved
+          evidence in the selected paper. Citation labels
+          identify the evidence used by the RAG pipeline.
+        </p>
+
+      </div>
+
+
+      <div className="explanation-grid">
+
+        {sections.map(
+          (section) => {
+
+            const data =
+              explanation[
+                section.key
+              ]
+
+            if (!data) {
+              return null
+            }
+
+            return (
+
+              <article
+                className="explanation-card"
+                key={
+                  section.key
+                }
+              >
+
+                <div className="explanation-card-header">
+
+                  <span>
+                    {section.title}
+                  </span>
+
+                  <BookOpen
+                    size={16}
+                  />
+
+                </div>
+
+
+                <p>
+                  {data.content}
+                </p>
+
+
+                {data.citations?.length >
+                  0 && (
+
+                  <div className="citation-row">
+
+                    {data.citations.map(
+                      (citation) => (
+
+                        <span
+                          key={
+                            citation
+                          }
+                        >
+                          {citation}
+                        </span>
+
+                      )
+                    )}
+
+                  </div>
+
+                )}
+
+              </article>
+
+            )
+          }
+        )}
+
+      </div>
+
+
+      {explanation.glossary?.length >
+        0 && (
+
+        <section className="glossary-section">
+
+          <div className="section-heading">
+
+            <div>
+
+              <span className="section-kicker">
+                GLOSSARY
+              </span>
+
+              <h2>
+                Key terms
+              </h2>
+
+            </div>
+
+          </div>
+
+
+          <div className="glossary-grid">
+
+            {explanation.glossary.map(
+              (entry) => (
+
+                <article
+                  className="glossary-card"
+                  key={
+                    entry.term
+                  }
+                >
+
+                  <strong>
+                    {entry.term}
+                  </strong>
+
+                  <p>
+                    {entry.definition}
+                  </p>
+
+
+                  {entry.citations?.length >
+                    0 && (
+
+                    <div className="citation-row">
+
+                      {entry.citations.map(
+                        (citation) => (
+
+                          <span
+                            key={
+                              citation
+                            }
+                          >
+                            {citation}
+                          </span>
+
+                        )
+                      )}
+
+                    </div>
+
+                  )}
+
+                </article>
+
+              )
+            )}
+
+          </div>
+
+        </section>
+
+      )}
+
+
+      <div className="explanation-actions">
+
+        <button
+          className="primary-button"
+          onClick={() =>
+            onAsk(
+              'Explain the main contribution of this paper.'
+            )
+          }
+        >
+
+          <BrainCircuit size={16} />
+
+          Ask about this paper
+
+          <ArrowUpRight
+            size={15}
+          />
+
+        </button>
+
+      </div>
+
+    </div>
+  )
+}
+
+
+/* =========================================================
+   CHAT
+   ========================================================= */
+
+function ChatView({
+  messages,
+  question,
+  setQuestion,
+  sending,
+  error,
+  onSend,
+  onSuggestion,
+}) {
+
+  const suggestions = [
+    'Explain the main contribution.',
+    'What are the limitations?',
+    'Explain the methodology.',
+  ]
+
+
+  return (
+    <div className="chat-workspace">
+
+      {messages.length === 0 ? (
+
+        <div className="chat-empty">
+
+          <div className="assistant-orb">
+
+            <BrainCircuit
+              size={38}
+              strokeWidth={1.2}
+            />
+
+          </div>
+
+          <span className="section-kicker">
+            RESEARCHPILOT AI
+          </span>
+
+          <h2>
+            Ask a question about the paper.
+          </h2>
+
+          <p>
+            Your question will be answered using retrieved
+            evidence from the selected document.
+          </p>
+
+
+          <div className="suggestion-row">
+
+            {suggestions.map(
+              (suggestion) => (
+
+                <button
+                  key={
+                    suggestion
+                  }
+                  onClick={() =>
+                    onSuggestion(
+                      suggestion
+                    )
+                  }
+                >
+                  {suggestion}
+                </button>
+
+              )
+            )}
+
+          </div>
+
+        </div>
+
+      ) : (
+
+        <div className="chat-messages">
+
+          {messages.map(
+            (message) => (
+
+              <article
+                className={`chat-message ${
+                  message.role
+                }`}
+                key={
+                  message.id
+                }
+              >
+
+                <div className="chat-message-role">
+
+                  {message.role ===
+                  'user'
+                    ? 'YOU'
+                    : 'RESEARCHPILOT'}
+
+                </div>
+
+
+                <div className="chat-message-content">
+
+                  {message.content}
+
+                </div>
+
+
+                {message.sources?.length >
+                  0 && (
+
+                  <div className="chat-sources">
+
+                    <span className="section-kicker">
+                      SOURCES
+                    </span>
+
+                    <div className="source-list">
+
+                      {message.sources.map(
+                        (source) => (
+
+                          <div
+                            className="source-item"
+                            key={
+                              source.citation_id
+                            }
+                          >
+
+                            <strong>
+                              {
+                                source.label ||
+                                `[C${source.citation_id}]`
+                              }
+                            </strong>
+
+                            <span>
+
+                              {source.page_number
+                                ? `Page ${source.page_number}`
+                                : 'Document evidence'}
+
+                              {source.section
+                                ? ` · ${source.section}`
+                                : ''}
+
+                              {source.subsection
+                                ? ` · ${source.subsection}`
+                                : ''}
+
+                            </span>
+
+                          </div>
+
+                        )
+                      )}
+
+                    </div>
+
+                  </div>
+
+                )}
+
+              </article>
+
+            )
+          )}
+
+          {sending && (
+
+            <article className="chat-message assistant">
+
+              <div className="chat-message-role">
+                RESEARCHPILOT
+              </div>
+
+              <div className="chat-message-content">
+
+                <Activity
+                  className="spin"
+                  size={18}
+                />
+
+                Retrieving evidence and generating an
+                answer…
+
+              </div>
+
+            </article>
+
+          )}
+
+        </div>
+
+      )}
+
+
+      {error && (
+
+        <div className="upload-error">
+          {error}
+        </div>
+
+      )}
+
+
+      <div className="chat-input">
+
+        <textarea
+          value={question}
+          onChange={(e) =>
+            setQuestion(
+              e.target.value
+            )
+          }
+          onKeyDown={(e) => {
+
+            if (
+              e.key ===
+              'Enter' &&
+              !e.shiftKey
+            ) {
+
+              e.preventDefault()
+
+              onSend()
+            }
+
+          }}
+          placeholder="Ask a question about this paper…"
+          rows={3}
+          disabled={sending}
+        />
+
+        <button
+          className="command-submit"
+          onClick={onSend}
+          disabled={
+            sending ||
+            !question.trim()
+          }
+          aria-label="Send question"
+        >
+
+          <Send size={18} />
+
+        </button>
+
+      </div>
+
+
+      <small className="chat-disclaimer">
+        Answers are grounded in retrieved evidence from
+        the selected paper. If the evidence is insufficient,
+        ResearchPilot may say so instead of inventing an answer.
+      </small>
+
+    </div>
   )
 }
 
@@ -1488,9 +2575,7 @@ function EvaluationPage() {
         <FlaskConical size={28} />
 
         <span className="section-kicker">
-
           NO BENCHMARK RUNS
-
         </span>
 
 
@@ -1501,7 +2586,7 @@ function EvaluationPage() {
 
         <p>
           Benchmarking will populate this area once
-          the RAG pipeline is connected.
+          the RAG pipeline evaluation suite is connected.
         </p>
 
       </div>
@@ -1525,14 +2610,14 @@ function ResearchRow({
     <article className="research-row">
 
       <div className="paper-number">
-
         {number}
-
       </div>
 
 
       <div
-        className={`paper-mark ${paper.color}`}
+        className={`paper-mark ${
+          paper.color
+        }`}
       >
 
         <BookOpen
@@ -1579,7 +2664,9 @@ function ResearchRow({
 
           Explore paper
 
-          <ArrowUpRight size={13} />
+          <ArrowUpRight
+            size={13}
+          />
 
         </button>
 
@@ -1612,9 +2699,7 @@ function WorkflowStep({
     <div className="workflow-step">
 
       <span className="workflow-number">
-
         {number}
-
       </span>
 
 

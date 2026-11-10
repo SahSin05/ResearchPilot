@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Any, Sequence
 
 import ollama
 
@@ -8,40 +8,47 @@ from app.services.generation.base import GenerationProvider
 class LocalGenerationProvider(GenerationProvider):
     """Local LLM generation provider using Ollama."""
 
-    def __init__(self, model: str = "llama3.2:3b") -> None:
+    def __init__(
+        self,
+        model: str = "llama3.2:3b",
+    ) -> None:
         self.model = model
 
-    def generate(self, question: str, context: Sequence[str]) -> str:
+    def generate(
+        self,
+        question: str,
+        context: Sequence[str],
+        response_format: dict[str, Any] | None = None,
+    ) -> str:
         context_text = "\n\n".join(context)
 
         prompt = f"""
 You are ResearchPilot, an AI research assistant.
 
-Answer the user's question using ONLY the supplied research evidence.
+Answer the user's request using ONLY the supplied research evidence.
 
 Rules:
 - Do not invent facts.
 - Do not use outside knowledge.
 - If the evidence is insufficient, clearly say that the available evidence
-  is insufficient to answer the question.
-- Give a concise, research-oriented answer.
+  is insufficient.
 - Preserve citation labels such as [C1], [C2] when they support your answer.
 
 Research evidence:
 {context_text}
 
-User question:
+User request:
 {question}
-"""
+""".strip()
 
-        response = ollama.chat(
-            model=self.model,
-            messages=[
+        chat_options: dict[str, Any] = {
+            "model": self.model,
+            "messages": [
                 {
                     "role": "system",
                     "content": (
-                        "You answer research questions using only "
-                        "the provided evidence."
+                        "You are a research assistant. "
+                        "Use only the supplied evidence."
                     ),
                 },
                 {
@@ -49,7 +56,12 @@ User question:
                     "content": prompt,
                 },
             ],
-        )
+        }
+
+        if response_format is not None:
+            chat_options["format"] = response_format
+
+        response = ollama.chat(**chat_options)
 
         answer = response["message"]["content"]
 
@@ -59,5 +71,3 @@ User question:
             )
 
         return answer
-
-    

@@ -1,3 +1,6 @@
+from app.services.embeddings import create_embedding_provider
+from app.services.embeddings.persistence import embed_pending_chunks
+
 from pathlib import Path
 import uuid
 
@@ -8,6 +11,7 @@ from fastapi import (
     HTTPException,
     UploadFile,
 )
+
 from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
@@ -15,6 +19,7 @@ from app.database.models import (
     DocumentDB,
     DocumentChunkDB,
 )
+
 from app.schemas.document import Document
 
 from app.services.documents import (
@@ -70,6 +75,7 @@ async def upload_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
+
     # --------------------------------
     # Validate filename
     # --------------------------------
@@ -79,6 +85,7 @@ async def upload_document(
             status_code=400,
             detail="No file provided.",
         )
+
 
     # --------------------------------
     # Validate content type
@@ -93,6 +100,7 @@ async def upload_document(
             ),
         )
 
+
     # --------------------------------
     # Read file
     # --------------------------------
@@ -100,6 +108,7 @@ async def upload_document(
     file_bytes = await file.read()
 
     file_size = len(file_bytes)
+
 
     # --------------------------------
     # Validate file size
@@ -117,6 +126,7 @@ async def upload_document(
             detail="Uploaded file is empty.",
         )
 
+
     # --------------------------------
     # Generate storage path
     # --------------------------------
@@ -130,6 +140,7 @@ async def upload_document(
     )
 
     file_path = UPLOAD_DIR / stored_filename
+
 
     # --------------------------------
     # Extract document
@@ -158,6 +169,7 @@ async def upload_document(
             )
 
         else:
+
             raise HTTPException(
                 status_code=400,
                 detail="Unsupported document type.",
@@ -179,6 +191,7 @@ async def upload_document(
             ),
         ) from exc
 
+
     # --------------------------------
     # Validate extracted text
     # --------------------------------
@@ -192,6 +205,7 @@ async def upload_document(
                 "from the document."
             ),
         )
+
 
     # --------------------------------
     # Save original file
@@ -209,6 +223,7 @@ async def upload_document(
             status_code=500,
             detail="Unable to save uploaded file.",
         ) from exc
+
 
     # --------------------------------
     # Create document record
@@ -229,6 +244,7 @@ async def upload_document(
     db.commit()
     db.refresh(document)
 
+
     try:
 
         # --------------------------------
@@ -238,6 +254,7 @@ async def upload_document(
         chunks = prepare_document_chunks(
             parsed_document
         )
+
 
         # --------------------------------
         # Store chunks
@@ -267,6 +284,7 @@ async def upload_document(
                 chunk_record
             )
 
+
         # --------------------------------
         # Resolve database IDs
         # --------------------------------
@@ -277,6 +295,7 @@ async def upload_document(
             chunk_record.chunk_index: chunk_record.id
             for chunk_record in chunk_records
         }
+
 
         # --------------------------------
         # Resolve parent relationships
@@ -308,6 +327,20 @@ async def upload_document(
                 parent_id
             )
 
+
+        # --------------------------------
+        # Generate embeddings
+        # --------------------------------
+
+        embedding_provider = create_embedding_provider()
+
+        embed_pending_chunks(
+            db=db,
+            provider=embedding_provider,
+            document_id=document.id,
+        )
+
+
         # --------------------------------
         # Mark processing complete
         # --------------------------------
@@ -319,6 +352,7 @@ async def upload_document(
         db.commit()
         db.refresh(document)
 
+
     except Exception:
 
         # --------------------------------
@@ -326,6 +360,7 @@ async def upload_document(
         # --------------------------------
 
         db.rollback()
+
 
         # --------------------------------
         # Mark document as failed
@@ -345,6 +380,7 @@ async def upload_document(
             db.rollback()
 
         raise
+
 
     # --------------------------------
     # Response
@@ -368,6 +404,7 @@ async def upload_document(
 def get_documents(
     db: Session = Depends(get_db),
 ):
+
     documents = (
         db.query(DocumentDB)
         .order_by(
@@ -404,6 +441,7 @@ def get_document(
     document_id: int,
     db: Session = Depends(get_db),
 ):
+
     document = (
         db.query(DocumentDB)
         .filter(

@@ -8,24 +8,26 @@ def embed_pending_chunks(
     db: Session,
     provider: EmbeddingProvider,
     batch_size: int = 50,
+    document_id: int | None = None,
 ) -> int:
-    """
-    Generate and persist embeddings for pending document chunks.
-
-    Returns the number of chunks successfully embedded.
-    """
-
     if batch_size <= 0:
         raise ValueError("batch_size must be greater than zero.")
 
-    chunks = (
+    query = (
         db.query(DocumentChunkDB)
-        .filter(
-            DocumentChunkDB.embedding_status == "pending"
-        )
+        .filter(DocumentChunkDB.embedding_status == "pending")
         .order_by(DocumentChunkDB.id.asc())
-        .all()
     )
+
+    if document_id is not None:
+        if document_id <= 0:
+            raise ValueError("document_id must be greater than zero.")
+
+        query = query.filter(
+            DocumentChunkDB.document_id == document_id
+        )
+
+    chunks = query.all()
 
     if not chunks:
         return 0
@@ -46,16 +48,14 @@ def embed_pending_chunks(
         for chunk, embedding in zip(batch, embeddings):
             if len(embedding) != provider.dimensions:
                 raise RuntimeError(
-                    f"Invalid embedding dimension for chunk "
-                    f"{chunk.id}: expected {provider.dimensions}, "
-                    f"got {len(embedding)}."
+                    f"Invalid embedding dimension for chunk {chunk.id}: "
+                    f"expected {provider.dimensions}, got {len(embedding)}."
                 )
 
             chunk.embedding = embedding
             chunk.embedding_model = provider.model_name
             chunk.embedding_version = "v1"
             chunk.embedding_status = "completed"
-
             processed += 1
 
         db.commit()

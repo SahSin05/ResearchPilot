@@ -1,6 +1,7 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
+from sqlalchemy.orm import Session
+
+from app.database.connection import SessionLocal
 from app.database.models import DocumentDB, DocumentChunkDB
 from app.services.embeddings.base import EmbeddingProvider
 from app.services.embeddings.persistence import embed_pending_chunks
@@ -32,55 +33,48 @@ class FakeEmbeddingProvider(EmbeddingProvider):
 
 
 def test_embed_pending_chunks():
-    engine = create_engine(
-        "postgresql+psycopg://researchpilot:researchpilot"
-        "@localhost:5432/researchpilot"
-    )
+    db: Session = SessionLocal()
 
-    TestingSessionLocal = sessionmaker(
-        bind=engine,
-        autoflush=False,
-        autocommit=False,
-    )
-
-    db = TestingSessionLocal()
-
-    document = DocumentDB(
-        filename="embedding-test.txt",
-        file_type="txt",
-        file_size=100,
-        page_count=1,
-        extracted_text=(
-            "ResearchPilot embedding persistence test."
-        ),
-        file_path="uploads/embedding-test.txt",
-        processing_status="completed",
-        user_id="test-user",
-    )
-
-    db.add(document)
-    db.commit()
-    db.refresh(document)
-
-    chunk = DocumentChunkDB(
-        document_id=document.id,
-        chunk_index=0,
-        chunk_level="child",
-        text=(
-            "Research papers contain scientific knowledge "
-            "that can be retrieved using semantic search."
-        ),
-        character_count=90,
-        content_hash="embedding-persistence-test",
-        page_number=1,
-        embedding_status="pending",
-    )
-
-    db.add(chunk)
-    db.commit()
-    db.refresh(chunk)
+    document = None
+    chunk = None
 
     try:
+        document = DocumentDB(
+            filename="embedding-test.txt",
+            file_type="txt",
+            file_size=100,
+            page_count=1,
+            extracted_text=(
+                "ResearchPilot embedding persistence test."
+            ),
+            file_path="uploads/embedding-test.txt",
+            processing_status="completed",
+            user_id="test-user",
+        )
+
+        db.add(document)
+        db.commit()
+        db.refresh(document)
+
+        chunk = DocumentChunkDB(
+            document_id=document.id,
+            chunk_index=0,
+            chunk_level="child",
+            text=(
+                "Research papers contain scientific knowledge "
+                "that can be retrieved using semantic search."
+            ),
+            character_count=90,
+            content_hash="embedding-persistence-test",
+            page_number=1,
+            embedding_status="pending",
+        )
+
+        db.add(chunk)
+        db.commit()
+        db.refresh(chunk)
+
+        # Prevent unrelated pending chunks from affecting this test.
         pending_chunks = (
             db.query(DocumentChunkDB)
             .filter(
@@ -113,7 +107,11 @@ def test_embed_pending_chunks():
         assert len(chunk.embedding) == 768
 
     finally:
-        db.delete(chunk)
-        db.delete(document)
+        if chunk is not None:
+            db.delete(chunk)
+
+        if document is not None:
+            db.delete(document)
+
         db.commit()
         db.close()

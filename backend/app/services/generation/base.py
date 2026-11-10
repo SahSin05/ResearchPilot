@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Sequence
+from typing import Sequence, Any
 
 
 class GenerationProvider(ABC):
@@ -10,6 +10,7 @@ class GenerationProvider(ABC):
         self,
         question: str,
         context: Sequence[str],
+        response_format: dict[str, Any] | None=None
     ) -> str:
         """Generate an answer grounded in the supplied context."""
         raise NotImplementedError

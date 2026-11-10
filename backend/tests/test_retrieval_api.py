@@ -21,7 +21,7 @@ class FakeEmbeddingProvider:
 
     @property
     def dimensions(self) -> int:
-        return 1536
+        return 768
 
     def embed_query(self, text: str) -> list[float]:
         return [1.0] + [0.0] * 767
@@ -45,7 +45,7 @@ def override_get_db():
         db.close()
 
 
-app.dependency_overrides[get_db] = override_get_db
+
 
 
 def test_retrieval_api():
@@ -96,6 +96,7 @@ def test_retrieval_api():
         )
 
         client = TestClient(app)
+        app.dependency_overrides[get_db] = override_get_db
 
         response = client.post(
             "/api/retrieval/search",
@@ -124,6 +125,8 @@ def test_retrieval_api():
         assert result["subsection"] == "Data Collection"
 
     finally:
+        app.dependency_overrides[get_db] = override_get_db
+        
         retrieval_route.create_embedding_provider = original_factory
 
         db.delete(relevant_chunk)

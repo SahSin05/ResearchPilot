@@ -1,21 +1,15 @@
-import os
+from functools import lru_cache
 
 from app.services.embeddings.base import EmbeddingProvider
-from app.services.embeddings.openai_provider import OpenAIEmbeddingProvider
 from app.services.embeddings.local_provider import LocalEmbeddingProvider
 
+
+@lru_cache(maxsize=1)
 def create_embedding_provider() -> EmbeddingProvider:
-    provider = os.getenv(
-        "EMBEDDING_PROVIDER",
-        "local",
-    ).lower()
+    """
+    Create and cache a single embedding provider instance.
 
-    if provider == "local":
-        return LocalEmbeddingProvider()
-
-    if provider =="openai":
-        return OpenAIEmbeddingProvider()
-
-    raise ValueError(
-        f"Unsupported embedding provider: {provider}"
-    )
+    The Sentence Transformer model is expensive to load, so we keep
+    one provider alive for the lifetime of the backend process.
+    """
+    return LocalEmbeddingProvider()

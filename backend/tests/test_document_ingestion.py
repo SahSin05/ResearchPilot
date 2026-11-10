@@ -236,3 +236,210 @@ def test_document_upload_persists_parent_child_relationships():
         finally:
 
             cleanup_db.close()
+
+
+def test_uploaded_document_embeddings_are_completed(
+    monkeypatch,
+):
+    """
+    Verify that uploading a document:
+
+    1. Creates the document successfully.
+    2. Generates embeddings for its chunks.
+    3. Marks all chunk embeddings as completed.
+    4. Stores the generated embeddings.
+    5. Only reports the document as completed
+       after the embedding lifecycle succeeds.
+    """
+
+    class FakeEmbeddingProvider:
+        @property
+        def model_name(self):
+            return "fake-embedding-model"
+
+        @property
+        def dimensions(self):
+            return 768
+
+        def embed_documents(self, texts):
+            return [
+                [1.0] + [0.0] * 767
+                for _ in texts
+            ]
+
+        def embed_query(self, text):
+            return [1.0] + [0.0] * 767
+
+    # --------------------------------
+    # Replace the real embedding provider
+    # with a deterministic test provider.
+    # --------------------------------
+
+    monkeypatch.setattr(
+        "app.routes.documents.create_embedding_provider",
+        lambda: FakeEmbeddingProvider(),
+    )
+
+    # --------------------------------
+    # Upload test document
+    # --------------------------------
+
+    response = client.post(
+        "/documents/upload",
+        files={
+            "file": (
+                "embedding-lifecycle.txt",
+                BytesIO(
+                    b"This document tests the embedding lifecycle."
+                ),
+                "text/plain",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+
+    response_data = response.json()
+
+    assert "id" in response_data
+    assert (
+        response_data["filename"]
+        == "embedding-lifecycle.txt"
+    )
+
+    document_id = int(
+        response_data["id"]
+    )
+
+    db = SessionLocal()
+
+    try:
+
+        # --------------------------------
+        # Verify document processing status
+        # --------------------------------
+
+        document = (
+            db.query(DocumentDB)
+            .filter(
+                DocumentDB.id == document_id
+            )
+            .first()
+        )
+
+        assert document is not None
+
+        assert (
+            document.processing_status
+            == "completed"
+        )
+
+        # --------------------------------
+        # Load document chunks
+        # --------------------------------
+
+        chunks = (
+            db.query(DocumentChunkDB)
+            .filter(
+                DocumentChunkDB.document_id
+                == document_id
+            )
+            .order_by(
+                DocumentChunkDB.chunk_index.asc()
+            )
+            .all()
+        )
+
+        assert chunks
+
+        # --------------------------------
+        # Verify embedding lifecycle
+        # --------------------------------
+
+        assert all(
+            chunk.embedding_status
+            == "completed"
+            for chunk in chunks
+        )
+
+        # --------------------------------
+        # Verify embeddings exist
+        # --------------------------------
+
+        assert all(
+            chunk.embedding is not None
+            for chunk in chunks
+        )
+
+        # --------------------------------
+        # Verify embedding dimensions
+        # --------------------------------
+
+        assert all(
+            len(chunk.embedding) == 768
+            for chunk in chunks
+        )
+
+        # --------------------------------
+        # Verify embedding metadata
+        # --------------------------------
+
+        assert all(
+            chunk.embedding_model
+            == "fake-embedding-model"
+            for chunk in chunks
+        )
+
+        assert all(
+            chunk.embedding_version
+            == "v1"
+            for chunk in chunks
+        )
+
+    finally:
+
+        # --------------------------------
+        # Clean up test data
+        # --------------------------------
+
+        db.close()
+
+        cleanup_db = SessionLocal()
+
+        try:
+
+            chunks_to_delete = (
+                cleanup_db.query(
+                    DocumentChunkDB
+                )
+                .filter(
+                    DocumentChunkDB.document_id
+                    == document_id
+                )
+                .all()
+            )
+
+            for chunk in chunks_to_delete:
+                cleanup_db.delete(chunk)
+
+            document_to_delete = (
+                cleanup_db.query(
+                    DocumentDB
+                )
+                .filter(
+                    DocumentDB.id
+                    == document_id
+                )
+                .first()
+            )
+
+            if document_to_delete:
+                cleanup_db.delete(
+                    document_to_delete
+                )
+
+            cleanup_db.commit()
+
+        finally:
+
+            cleanup_db.close()

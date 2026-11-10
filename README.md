@@ -1,181 +1,320 @@
-ResearchPilot AI — Day 2 Research Data Foundation
-A full-stack AI research assistant with academic paper discovery, document ingestion, persistent research storage, and RAG-ready document chunking.
-Stack
-- Frontend: React + Vite + JavaScript
-- Backend: FastAPI + Python
-- Database: SQLite + SQLAlchemy
-- Academic literature: OpenAlex API
-- Document extraction: PyMuPDF + python-docx
-- Local orchestration: Docker Compose
-Requirements
-- Node.js 20+ (or a current LTS release)
-- Python 3.11+
-- Docker Desktop (optional, for Compose)
-- OpenAlex API key
-Run locally
-1. Backend
-From the repository root:
-cd backend
+# ResearchPilot AI
 
-Create and activate the virtual environment:
-python -m venv .venv
+> **An AI-powered research paper assistant built with Retrieval-Augmented Generation (RAG), hybrid search, reranking, citations, and LLM-powered paper analysis.**
 
-Windows PowerShell:
-.venv\Scripts\Activate.ps1
+ResearchPilot AI helps users **upload, understand, search, and interact with research papers** through an evidence-grounded AI system.
 
-macOS/Linux:
-source .venv/bin/activate
+Instead of sending an entire paper directly to an LLM, ResearchPilot retrieves the most relevant evidence from the paper first and uses that evidence to generate grounded responses.
 
-Install dependencies:
-pip install -r requirements.txt
+---
 
-Start the backend:
-python -m uvicorn app.main:app --reload --app-dir backend
+## 🚀 What It Does
 
-API docs:
-http://localhost:8000/docs
-Health check:
-http://localhost:8000/health
-2. Frontend
-Open another terminal:
-cd frontend
-npm install
-npm run dev
+ResearchPilot is designed around two main experiences:
 
-Open the URL Vite prints, usually:
-http://localhost:5173
-The frontend connects to the backend at:
-http://localhost:8000
+### 📖 Paper Intelligence
 
-Environment variables
-Create a .env file in the repository root:
-OPENALEX_API_KEY=your_openalex_api_key
+Automatically analyzes a research paper and produces a structured explanation covering:
 
-Do not commit .env to Git.
-Day 2 features
-Academic paper discovery
-- OpenAlex integration
-- Paper search
-- Author filtering
-- Publication-year filtering
-- Pagination
-- Paper normalization
-- Paper persistence in SQLite
-- Paper detail retrieval
-Document ingestion
-- PDF upload
-- DOCX upload
-- TXT upload
-- File validation
-- Original file storage
-- Text extraction
-- Document metadata persistence
-Research library
-- Persistent document library
-- Document listing
-- Frontend upload interface
-- Backend/frontend integration
-RAG preparation
-- Text chunking
-- Chunk overlap
-- Persistent document chunks
-- Chunk metadata including:
-  - Document ID
-  - Chunk index
-  - Chunk text
-  - Character count
-Database structure
-Day 2 introduces persistent research storage:
-SQLite
-│
-├── papers
-│   ├── OpenAlex ID
-│   ├── title
-│   ├── publication year
-│   ├── DOI
-│   ├── authors
-│   └── abstract
-│
-├── documents
-│   ├── filename
-│   ├── file type
-│   ├── file size
-│   ├── page count
-│   ├── extracted text
-│   ├── file path
-│   ├── processing status
-│   └── user ID
-│
-└── document_chunks
-    ├── document ID
-    ├── chunk index
-    ├── chunk text
-    └── character count
+- Research problem
+- Key concepts
+- Methodology
+- Dataset
+- Results
+- Limitations
+- Glossary
 
-Day 2 acceptance checks
-- [x] FastAPI /health returns {"status":"ok"}
-- [x] React frontend loads
-- [x] UI reports backend connectivity
-- [x] OpenAlex paper search works
-- [x] OpenAlex API key configured
-- [x] Papers can be persisted in SQLite
-- [x] PDF extraction works
-- [x] DOCX extraction works
-- [x] TXT extraction works
-- [x] Documents can be uploaded
-- [x] Uploaded files are stored locally
-- [x] Documents appear in My Library
-- [x] Documents persist after frontend reload
-- [x] Document chunks are generated
-- [x] Document chunks are persisted in SQLite
-- [x] Day 2 changes committed to Git
-- [x] Day 2 changes pushed to GitHub
-Day 2 project structure
-ResearchPilot/
-├── backend/
-│   ├── app/
-│   │   ├── database/
-│   │   │   ├── connection.py
-│   │   │   └── models.py
-│   │   ├── routes/
-│   │   │   ├── documents.py
-│   │   │   └── papers.py
-│   │   ├── schemas/
-│   │   │   ├── document.py
-│   │   │   └── paper.py
-│   │   ├── services/
-│   │   │   ├── chunking.py
-│   │   │   ├── documents.py
-│   │   │   └── openalex.py
-│   │   └── main.py
-│   ├── test_chunking.py
-│   ├── test_openalex.py
-│   └── requirements.txt
-│
-├── frontend/
-│   └── src/
-│       └── App.jsx
-│
-├── researchpilot.db
-└── README.md
+The system will be expanded into a more comprehensive **research-paper study guide**.
 
-Git checkpoint
-Day 2 commit:
-6290a17 — Complete Day 2 research data foundation
+### 💬 Research Paper Chat
 
-Notes
-Day 2 establishes the persistent research-data foundation for ResearchPilot AI.
-The next phase will build the RAG layer:
-Document chunks
+Users can ask questions about an uploaded paper and receive answers based on **retrieved evidence from that specific paper**, with citations pointing back to the source.
+
+---
+
+# 🧠 Core RAG Pipeline
+
+The project implements a multi-stage RAG pipeline:
+
+```text
+Research Paper
+      ↓
+PDF Processing
+      ↓
+Hierarchical Chunking
       ↓
 Embeddings
       ↓
-Vector store
+┌─────────────────────────┐
+│ Vector Search           │
+│        +                │
+│ PostgreSQL Full-Text    │
+│ Search                  │
+└────────────┬────────────┘
+             ↓
+            RRF
+             ↓
+         Reranking
+             ↓
+     Parent Context
+        Expansion
+             ↓
+      Context Selection
+             ↓
+        Citations
+             ↓
+       LLM Generation
+             ↓
+   Evidence-Grounded Answer
+```
+
+This architecture allows the system to retrieve relevant evidence instead of relying entirely on the LLM's internal knowledge.
+
+---
+
+# 🔑 Key Concepts Implemented
+
+### Retrieval-Augmented Generation
+
+The LLM receives relevant retrieved evidence before generating an answer.
+
+### Hybrid Search
+
+Combines:
+
+- **Semantic vector search** using embeddings
+- **Lexical search** using PostgreSQL Full-Text Search
+
+This provides both semantic understanding and exact keyword matching.
+
+### Reciprocal Rank Fusion (RRF)
+
+Combines the rankings from vector and lexical retrieval into a unified candidate ranking.
+
+### Reranking
+
+Retrieved candidates are reranked based on their relevance to the user's question before being passed to the generation layer.
+
+### Hierarchical Chunking
+
+Documents are divided into chunks while maintaining parent-child relationships, allowing precise retrieval while preserving surrounding context.
+
+### Citation-Aware Generation
+
+Retrieved evidence is converted into citation references such as:
+
+```text
+[C1] [C2] [C3]
+```
+
+allowing generated answers to be traced back to source sections/pages.
+
+### Structured LLM Output
+
+Paper explanations use structured JSON schemas and Pydantic validation to produce predictable, frontend-friendly responses.
+
+---
+
+# 🏗️ Architecture
+
+```text
+                    React Frontend
+                          │
+                          ▼
+                    FastAPI Backend
+                          │
+          ┌───────────────┼───────────────┐
+          ▼               ▼               ▼
+     Documents        Retrieval       Generation
+          │               │               │
+          ▼               ▼               ▼
+     PDF/Chunks       Hybrid Search   Groq / Ollama
+          │               │
+          ▼               ▼
+      Embeddings       RRF + Rerank
+          │               │
+          └───────┬───────┘
+                  ▼
+             PostgreSQL
+              + pgvector
+```
+
+---
+
+# 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React, Vite, JavaScript |
+| Backend | Python, FastAPI |
+| Database | PostgreSQL |
+| Vector Search | pgvector + HNSW |
+| Lexical Search | PostgreSQL FTS + GIN |
+| Embeddings | Sentence Transformers (`all-mpnet-base-v2`) |
+| Generation | Groq / Ollama |
+| Validation | Pydantic |
+| Testing | Pytest |
+| Infrastructure | Docker |
+
+---
+
+# 📂 Project Structure
+
+```text
+ResearchPilot-sync/
+│
+├── backend/
+│   ├── app/
+│   │   ├── routes/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   │   ├── embeddings/
+│   │   │   ├── retrieval/
+│   │   │   └── generation/
+│   │   └── database/
+│   │
+│   └── tests/
+│
+├── frontend/
+│   └── src/
+│
+├── docker-compose.yml
+├── .gitignore
+└── README.md
+```
+
+---
+
+# 🧪 Testing
+
+Testing is treated as an important part of the project rather than an afterthought.
+
+The backend includes tests for:
+
+- Document ingestion
+- Embedding persistence
+- Retrieval APIs
+- Paper evidence retrieval
+- Explanation generation
+- Explanation APIs
+
+The project will also include broader **end-to-end testing** covering:
+
+```text
+Upload Paper
+     ↓
+Process & Index
+     ↓
+Generate Explanation
+     ↓
+Ask Question
+     ↓
+Retrieve Evidence
+     ↓
+Generate Answer
+     ↓
+Verify Citations
+```
+
+---
+
+# 📊 RAG Evaluation
+
+A major planned part of the project is evaluating the RAG system itself.
+
+Evaluation will cover:
+
+- Retrieval quality
+- Recall@K
+- Precision@K
+- MRR / ranking quality
+- Answer correctness
+- Groundedness
+- Hallucination rate
+- Citation accuracy
+- Retrieval latency
+- End-to-end response latency
+
+The goal is to evaluate **whether the RAG pipeline actually improves answer quality**, rather than only demonstrating that the application works.
+
+---
+
+# ☁️ Deployment & Production
+
+The project is being developed with a production-oriented architecture.
+
+Planned deployment includes:
+
+```text
+React Frontend
       ↓
-Semantic retrieval
+FastAPI Backend
       ↓
-LLM
+PostgreSQL + pgvector
       ↓
-Grounded answers
-      ↓
-Citations
+Groq LLM
+```
+
+Production considerations include:
+
+- Dockerized services
+- Environment-based configuration
+- Secret management
+- Database persistence
+- API security
+- Logging and monitoring
+- CI/CD
+- Automated testing
+- Performance evaluation
+
+---
+
+# 🔮 Roadmap
+
+### Current
+
+- [x] Full-stack application foundation
+- [x] Document ingestion
+- [x] Hierarchical chunking
+- [x] Embedding pipeline
+- [x] Vector search
+- [x] PostgreSQL Full-Text Search
+- [x] Hybrid retrieval
+- [x] RRF
+- [x] Reranking
+- [x] Parent context expansion
+- [x] Citation generation
+- [x] Groq integration
+- [x] Structured paper explanation
+- [x] Backend test coverage
+
+### Next
+
+- [ ] Enhanced Paper Intelligence / Study Guide
+- [ ] Full research-paper chatbot
+- [ ] Multi-turn conversational context
+- [ ] Improved citation/source UI
+- [ ] RAG evaluation framework
+- [ ] End-to-end evaluation
+- [ ] Production deployment
+- [ ] CI/CD and monitoring
+
+---
+
+# 🎯 Why This Project?
+
+ResearchPilot is designed to demonstrate practical understanding of modern AI application development beyond simply calling an LLM API.
+
+The project combines:
+
+**RAG + Information Retrieval + Vector Databases + NLP + LLMs + Backend Engineering + Frontend Engineering + Evaluation + Deployment**
+
+The focus is on building a system where AI responses are **retrieved from evidence, traceable to sources, testable, and measurable**.
+
+---
+
+## Project Status
+
+🚧 **Actively under development**
+
+The core RAG infrastructure and structured paper explanation pipeline are operational. The next development phase focuses on completing the research-paper chatbot, improving paper intelligence, and establishing a comprehensive RAG evaluation and deployment workflow.
